@@ -2,6 +2,9 @@ const express = require('express');
 const app = express();
 const morgan = require('morgan');
 const cors = require('cors');
+const pool = require('./db');
+const dotenv = require('dotenv').config();
+const config = require('config');
 
 let persons = [
   {
@@ -39,36 +42,43 @@ const requestLogger = (request, response, next) => {
   next();
 };
 
-app.use(express.json());
-app.use(cors());
 app.use(express.static('build'));
+app.use(cors());
+app.use(express.json());
 app.use(requestLogger);
-app.use(morgan('tiny'));
+app.use(morgan(config.get('logger')));
 
 app.get('/', (req, res) => {
   res.send('<h1>phonebook home</h1>').end();
 });
 
 app.get('/api/persons', (req, res) => {
-  res.json(persons);
+  const sql = 'SELECT * FROM persons';
+
+  pool.query(sql, (err, result) => {
+    if (err) throw err;
+    res.json(result);
+  });
 });
 
 app.get('/api/persons/:id', (req, res) => {
   const id = Number(req.params.id);
-  const person = persons.find(person => person.id === id);
+  const sql = 'SELECT * FROM persons WHERE id = ?';
 
-  if (!person) {
-    return res.status(404).end();
-  }
-
-  res.json(person);
+  pool.query(sql, [id], (err, result) => {
+    if (err) throw err;
+    res.json(result);
+  });
 });
 
 app.get('/info', (req, res) => {
-  const len = persons.length;
   const time = new Date();
+  const sql = 'SELECT * FROM persons';
 
-  res.send(`Phonebook has info for ${len} people<br>${time.toString()}`);
+  pool.query(sql, (err, result) => {
+    if (err) throw err;
+    res.send(`Phonebook has info for ${result.length} people<br>${time.toString()}`);
+  });
 });
 
 app.post('/api/persons', (req, res) => {
@@ -80,9 +90,6 @@ app.post('/api/persons', (req, res) => {
 
   if (repetNumber) {
     return res.json({ error: 'Number must be a unique' });
-  }
-  if (repetName) {
-    return res.json({ error: 'Name must be a unique' });
   }
 
   if (!body.name || !body.number) {
@@ -99,11 +106,31 @@ app.post('/api/persons', (req, res) => {
   res.status(200).json(person).end();
 });
 
+app.put('/api/persons/:id', (req, res) => {
+  let id = Number(req.params.id);
+  const body = req.body;
+  const sql = 'UPDATE persons SET ?';
+
+  pool.query(sql, body, (err, result) => {
+    if (err) throw err;
+
+    pool.query('SELECT * FROM persons WHERE id = ?', [id], (err, results) => {
+      if (err) throw err;
+
+      res.json(results);
+    });
+  });
+});
+
 app.delete('/api/persons/:id', (req, res) => {
   const id = Number(req.params.id);
-  persons = persons.filter(person => person.id !== id);
+  const sql = 'DELETE FROM persons WHERE id= ?';
 
-  res.status(404).end();
+  pool.query(sql, [id], (err, result) => {
+    if (err) throw err;
+
+    res.json(result);
+  });
 });
 
 const port = process.env.PORT || 3001;
