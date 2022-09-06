@@ -6,6 +6,7 @@ const pool = require('./db');
 const dotenv = require('dotenv').config();
 const config = require('config');
 
+console.log(config.get('hosti'));
 let persons = [
   {
     name: 'Arto Hellas',
